@@ -1,0 +1,126 @@
+{
+  "gateway_url": "http://localhost:9080",
+  "timeout": 10,
+  "platform": "CPU-only (AMD Ryzen 5 PRO 3600, 6 threads, 12GB RAM)",
+
+  "performance_targets": {
+    "latency_e2e": "<100ms",
+    "throughput": "50-100 RPS",
+    "false_positive_rate": "<5%",
+    "accuracy": ">95%"
+  },
+
+  "datasets": {
+    "edge_cases_false_positives": {
+      "file": "safellm/tests/datasets/edge_cases_false_positives.csv",
+      "description": "Edge cases prone to false positives",
+      "expected_col": "expected",
+      "prompt_col": "prompt",
+      "expected_value": "safe",
+      "critical_for": "user_experience"
+    },
+    "known_false_positives": {
+      "file": "safellm/tests/datasets/known_false_positives.csv",
+      "description": "Known false positive cases from past testing",
+      "expected_col": "expected",
+      "prompt_col": "prompt",
+      "expected_value": "safe",
+      "critical_for": "regression_testing"
+    },
+    "latency_safe": {
+      "file": "safellm/tests/datasets/latency_safe_prompts.csv",
+      "description": "Safe prompts for latency testing",
+      "expected_col": "expected",
+      "prompt_col": "prompt",
+      "expected_value": "safe",
+      "critical_for": "performance"
+    },
+    "latency_unsafe": {
+      "file": "safellm/tests/datasets/latency_unsafe_prompts.csv",
+      "description": "Unsafe prompts for latency testing",
+      "expected_col": "expected",
+      "prompt_col": "prompt",
+      "expected_value": "unsafe",
+      "critical_for": "performance"
+    },
+    "prompt_injections": {
+      "file": "safellm/tests/datasets/prompt_injections.csv",
+      "description": "Prompt injection attacks",
+      "expected_col": "label",
+      "prompt_col": "text",
+      "expected_value": 0,
+      "critical_for": "security"
+    },
+    "toxicity": {
+      "file": "safellm/tests/datasets/toxicity_prompts.csv",
+      "description": "Toxic content detection",
+      "expected_col": null,
+      "prompt_col": "prompt",
+      "toxicity_threshold": 0.5,
+      "critical_for": "content_moderation"
+    },
+    "alert_adversarial": {
+      "file": "safellm/tests/datasets/alert_adversarial_prompts.csv",
+      "description": "Adversarial prompt detection",
+      "expected_col": null,
+      "prompt_col": "instruction",
+      "critical_for": "advanced_security"
+    }
+  },
+
+  "benchmark_types": {
+    "datasetBenchmark": {
+      "script": "datasetBenchmark.py",
+      "description": "Comprehensive testing across all datasets",
+      "focus": "overall_accuracy",
+      "output": "dataset_comparison"
+    },
+    "benchmark_detection": {
+      "script": "safellm/tests/BENCHMARK_DETECTION.py",
+      "description": "False positive analysis and pattern detection",
+      "focus": "false_positives",
+      "output": "pattern_analysis"
+    },
+    "benchmark_gateway": {
+      "script": "benchmark_gateway.py",
+      "description": "Gateway performance and latency testing",
+      "focus": "performance",
+      "output": "latency_metrics"
+    }
+  },
+
+  "alert_thresholds": {
+    "false_positive_rate": 5.0,
+    "false_negative_rate": 5.0,
+    "accuracy_min": 95.0,
+    "latency_p95_max": 200.0,
+    "throughput_min": 50.0
+  },
+
+  "recommendations": {
+    "high_false_positive": [
+      "Lower AI model detection threshold",
+      "Review keyword patterns for over-aggressiveness",
+      "Add context-aware filtering",
+      "Implement whitelist for trusted patterns"
+    ],
+    "high_false_negative": [
+      "Increase detection sensitivity",
+      "Add more comprehensive keyword rules",
+      "Update AI model thresholds",
+      "Review training data coverage"
+    ],
+    "high_latency": [
+      "Optimize caching strategy",
+      "Consider async processing improvements",
+      "Review AI model inference optimization",
+      "Check for bottlenecks in pipeline"
+    ],
+    "low_throughput": [
+      "Increase worker processes",
+      "Optimize memory usage",
+      "Review concurrent processing limits",
+      "Consider hardware upgrades"
+    ]
+  }
+}

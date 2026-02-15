@@ -1,0 +1,40 @@
+# APISIX Standalone Mode Configuration
+# No etcd - uses apisix.yaml for route configuration
+
+apisix:
+  node_listen: 9080
+  enable_ipv6: false
+  
+# STANDALONE MODE - critical
+# Role: data_plane = traffic forwarding only, config from YAML file
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+# Plugins
+plugins:
+  - proxy-rewrite
+  - response-rewrite
+  - serverless-pre-function
+  - http-logger
+  - limit-req
+
+# Header buffer configuration
+#
+# Body is no longer sent in headers (we use resty.http POST).
+# Buffers are larger to handle large tokens/auth and custom headers.
+nginx_config:
+  error_log_level: warn
+  http:
+    custom_lua_shared_dict:
+      prometheus-cache: 10m
+      http-logger: 10m
+    # Initial buffer for small headers
+    client_header_buffer_size: 16k
+    # Large headers (4 buffers × 64KB = 256KB max header size)
+    large_client_header_buffers: 4 64k
+    # Timeout for reading headers (large prompts)
+    client_header_timeout: 30s
+    # Maximum body size (must match sidecar MAX_BODY_SIZE: 1 MiB)
+    client_max_body_size: 1m

@@ -1,0 +1,27 @@
+apiVersion: v2
+name: safellm-oss
+description: SafeLLM OSS - AI Security Gateway for Apache APISIX
+type: application
+version: 2.0.0
+appVersion: "2.0.0"
+
+keywords:
+  - llm
+  - security
+  - apisix
+  - pii
+  - prompt-injection
+
+home: https://github.com/safellm/safellm
+sources:
+  - https://github.com/safellm/safellm
+
+maintainers:
+  - name: SafeLLM Team
+    url: https://safellm.io
+
+dependencies:
+  - name: redis
+    version: "18.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled

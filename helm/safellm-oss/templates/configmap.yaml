@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "safellm-oss.fullname" . }}-config
+  labels:
+    {{- include "safellm-oss.labels" . | nindent 4 }}
+data:
+  SAFELLM_EDITION: {{ .Values.safellm.edition | quote }}
+  ENABLE_METRICS: {{ .Values.safellm.enableMetrics | quote }}
+  ENABLE_AUDIT_LOGS: {{ .Values.safellm.enableAuditLogs | quote }}
+  FAIL_OPEN: {{ .Values.safellm.failOpen | quote }}
+  SHADOW_MODE: {{ .Values.safellm.shadowMode | quote }}
+  ENABLE_CACHE: {{ .Values.safellm.enableCache | quote }}
+  ENABLE_L1_KEYWORDS: {{ .Values.safellm.enableKeywords | quote }}
+  ENABLE_L3_PII: {{ .Values.safellm.enablePII | quote }}
+  USE_FAST_PII: {{ .Values.safellm.useFastPII | quote }}
+  REDIS_HOST: {{ include "safellm-oss.redisHost" . | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}

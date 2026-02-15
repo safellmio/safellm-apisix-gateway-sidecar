@@ -1,0 +1,389 @@
+# APISIX Standalone Routes Configuration
+# Ten plik definiuje trasy, upstreamy i pluginy
+#
+# ✅ ARCHITEKTURA: serverless-pre-function + resty.http POST
+#    Lua sends the full body as HTTP POST to the sidecar (not via headers).
+#    This bypasses Nginx header limits and is safer.
+#
+# LIMITY:
+#   - Lua check: 1MB max body (linia ~60)
+#   - Sidecar: MAX_BODY_SIZE w settings.py
+#   - No header size limits (body is sent as HTTP payload)
+#
+# FAIL-SAFE CONFIGURATION:
+#   Each Lua function starts with configuration variables:
+#   - FAIL_OPEN: false = block when sidecar is unavailable (safe, default)
+#                true  = allow traffic when sidecar is unavailable (risky, SaaS)
+#   - TIMEOUT_MS: max wait time for sidecar (default 5000ms)
+#   - MAX_BODY_SIZE: max body size (default 1MB)
+
+# Upstreams (backendy)
+upstreams:
+  - id: upstream_httpbin
+    type: roundrobin
+    nodes:
+      "upstream:80": 1
+
+  - id: upstream_sidecar
+    type: roundrobin
+    nodes:
+      "sidecar:8000": 1
+
+  - id: upstream_llm
+    type: roundrobin
+    nodes:
+      "upstream:80": 1
+
+# Routes (trasy)
+routes:
+  # === DIRECT ACCESS (bez security) ===
+  - id: route_direct
+    uri: /direct/*
+    upstream_id: upstream_httpbin
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/direct/(.*)", "/$1"]
+
+  # === PROTECTED API (z security via resty.http POST) ===
+  # Lua serverless-pre-function sends body as HTTP POST to the sidecar
+  # Bypasses Nginx header limits - body is payload, not a header
+  - id: route_protected
+    uri: /api/*
+    upstream_id: upstream_httpbin
+    plugins:
+      # 0. Rate limiting
+      limit-req:
+        rate: 200
+        burst: 100
+        key: remote_addr
+        rejected_code: 429
+      # 1. Lua function: Sends body as HTTP POST to the sidecar
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - |
+            return function(conf, ctx)
+                local core = require("apisix.core")
+                local http = require("resty.http")
+                
+                -- ============================================================
+                -- FAIL-SAFE CONFIGURATION
+                -- ============================================================
+                -- FAIL_OPEN: behavior when sidecar is unavailable
+                --   false (default) = block request (503) - safe for banks/healthcare
+                --   true            = allow request without scanning - SaaS/e-commerce
+                -- TIMEOUT_MS: max wait time for sidecar response
+                -- MAX_BODY_SIZE: Max rozmiar body (1MB = 1048576 bytes)
+                -- ============================================================
+                local FAIL_OPEN = false
+                local TIMEOUT_MS = tonumber(os.getenv("SAFELLM_TIMEOUT_MS")) or 5000
+                local KEEPALIVE_IDLE_MS = tonumber(os.getenv("SAFELLM_KEEPALIVE_IDLE_MS")) or 60000
+                local KEEPALIVE_POOL = tonumber(os.getenv("SAFELLM_KEEPALIVE_POOL")) or 100
+                local MAX_BODY_SIZE = 1048576
+                
+                -- Read request body
+                ngx.req.read_body()
+                local body = ngx.req.get_body_data()
+                
+                -- FIX: Handle large body stored in temp file
+                if not body then
+                    local file_path = ngx.req.get_body_file()
+                    if file_path then
+                        local file = io.open(file_path, "rb")
+                        if file then
+                            body = file:read("*a")
+                            file:close()
+                        else
+                            core.log.error("Failed to open body temp file: ", file_path)
+                            core.response.exit(500, "Failed to read request body")
+                            return
+                        end
+                    end
+                end
+                
+                -- If body is empty, fall back to query string to avoid bypass
+                if not body or #body == 0 then
+                    local args = ngx.var.args
+                    if args and #args > 0 then
+                        body = ngx.unescape_uri(args)
+                    else
+                        return
+                    end
+                end
+                
+                -- Size limit check
+                if #body > MAX_BODY_SIZE then
+                    core.response.exit(413, "Request body too large. Max: 1MB")
+                    return
+                end
+                
+                -- Create HTTP client
+                local httpc = http.new()
+                httpc:set_timeout(TIMEOUT_MS)
+                
+                -- Send POST request to Sidecar /auth endpoint
+                local res, err = httpc:request_uri("http://sidecar:8000/auth", {
+                    method = "POST",
+                    body = body,
+                    headers = {
+                        ["Content-Type"] = ngx.req.get_headers()["Content-Type"] or "application/json",
+                        ["X-Original-URI"] = ngx.var.request_uri,
+                        ["X-Request-Id"] = ngx.req.get_headers()["X-Request-Id"] or ngx.var.request_id
+                    }
+                })
+                if res then
+                    httpc:set_keepalive(KEEPALIVE_IDLE_MS, KEEPALIVE_POOL)
+                end
+                
+                -- Handle Sidecar connection failure
+                if not res then
+                    core.log.error("Sidecar connection failed: ", err)
+                    if FAIL_OPEN then
+                        core.log.warn("FAIL_OPEN=true: Allowing request without security scan")
+                        return  -- Allow traffic without scanning
+                    else
+                        core.response.exit(503, "Security service unavailable")
+                        return
+                    end
+                end
+                
+                -- Handle Sidecar internal errors (5xx)
+                if res.status >= 500 then
+                    core.log.error("Sidecar internal error: ", res.status)
+                    if FAIL_OPEN then
+                        core.log.warn("FAIL_OPEN=true: Allowing request despite Sidecar error")
+                        return
+                    else
+                        core.response.exit(503, "Security check failed")
+                        return
+                    end
+                end
+                
+                -- Check Sidecar response
+                if res.status == 200 then
+                    local latency = res.headers["X-Latency-Ms"]
+                    if latency then
+                        core.request.set_header(ctx, "X-Guard-Latency-Ms", latency)
+                    end
+                    return  -- Continue to upstream
+                elseif res.status == 403 then
+                    local blocked_by = res.headers["X-Blocked-By"] or "unknown"
+                    core.response.exit(403, "Blocked by security: " .. blocked_by)
+                    return
+                else
+                    core.log.error("Sidecar returned unexpected status: ", res.status)
+                    core.response.exit(500, "Security check failed")
+                    return
+                end
+            end
+      # 2. Rewrite: Remove /api/ prefix
+      proxy-rewrite:
+        regex_uri: ["^/api/(.*)", "/$1"]
+
+  # === DLP BLOCK MODE (not available in OSS build) ===
+  #
+  # DLP Block Mode is NOT available in OSS due to OpenResty limitations:
+  # - body_filter phase doesn't support cosockets (HTTP calls)
+  # - Cannot make network requests to scan response before returning to client
+  #
+  # This mode requires a different architecture (buffering proxy) unavailable in OSS.
+  # OSS users: Use route_protected_dlp_audit below for async audit logging.
+  #
+  # See docs for OSS limitations and alternative audit mode usage.
+
+  # --- REMOVED FOR OSS: route_protected_dlp (block mode) ---
+  # The following route has been removed because it cannot work in OSS.
+  # Use /api/llm-audit/* with audit mode instead.
+
+  # (Content removed - see route_protected_dlp_audit below)
+  # === AUDIT MODE: LLM Endpoint with Async PII Detection ===
+  # For SaaS/Startups: Stream response immediately, scan in background
+  #
+  # DLP_STREAMING_MODE=audit Flow:
+  #   1. serverless-pre-function: Scan INPUT (same as block mode - blocks malicious prompts)
+  #   2. Response streams IMMEDIATELY to client (zero latency overhead!)
+  #   3. http-logger: Asynchronously batch request+response to /v1/audit/ingest
+  #   4. Sidecar scans OUTPUT in background, logs PII for audit
+  #
+  # TRADE-OFF:
+  #   - PRO: Zero TTFT overhead (response is not buffered)
+  #   - CON: PII detection is post-factum (cannot block - only audit/alert)
+  #
+  # Usage: set DLP_STREAMING_MODE=audit in sidecar .env
+  # Route: /api/llm-audit/* (alternative to /api/llm/* in block mode)
+  - id: route_protected_dlp_audit
+    uri: /api/llm-audit/*
+    upstream_id: upstream_llm
+    plugins:
+      # 0. Rate limiting
+      limit-req:
+        rate: 200
+        burst: 100
+        key: remote_addr
+        rejected_code: 429
+      # 1. INPUT: Scan request body (blocking - same as block mode!)
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - |
+            return function(conf, ctx)
+                local core = require("apisix.core")
+                local http = require("resty.http")
+                
+                -- FAIL-SAFE CONFIG (see header comment for details)
+                local FAIL_OPEN = false
+                local TIMEOUT_MS = tonumber(os.getenv("SAFELLM_TIMEOUT_MS")) or 5000
+                local KEEPALIVE_IDLE_MS = tonumber(os.getenv("SAFELLM_KEEPALIVE_IDLE_MS")) or 60000
+                local KEEPALIVE_POOL = tonumber(os.getenv("SAFELLM_KEEPALIVE_POOL")) or 100
+                local MAX_BODY_SIZE = 1048576
+                
+                ngx.req.read_body()
+                local body = ngx.req.get_body_data()
+                
+                if not body then
+                    local file_path = ngx.req.get_body_file()
+                    if file_path then
+                        local file = io.open(file_path, "rb")
+                        if file then
+                            body = file:read("*a")
+                            file:close()
+                        else
+                            core.log.error("Failed to open body temp file: ", file_path)
+                            core.response.exit(500, "Failed to read request body")
+                            return
+                        end
+                    end
+                end
+                
+                if not body or #body == 0 then
+                    local args = ngx.var.args
+                    if args and #args > 0 then
+                        body = ngx.unescape_uri(args)
+                    else
+                        return
+                    end
+                end
+                
+                if #body > MAX_BODY_SIZE then
+                    core.response.exit(413, "Request body too large. Max: 1MB")
+                    return
+                end
+                
+                local httpc = http.new()
+                httpc:set_timeout(TIMEOUT_MS)
+                
+                local res, err = httpc:request_uri("http://sidecar:8000/auth", {
+                    method = "POST",
+                    body = body,
+                    headers = {
+                        ["Content-Type"] = ngx.req.get_headers()["Content-Type"] or "application/json",
+                        ["X-Original-URI"] = ngx.var.request_uri,
+                        ["X-Request-Id"] = ngx.req.get_headers()["X-Request-Id"] or ngx.var.request_id
+                    }
+                })
+                if res then
+                    httpc:set_keepalive(KEEPALIVE_IDLE_MS, KEEPALIVE_POOL)
+                end
+                
+                if not res then
+                    core.log.error("Sidecar connection failed: ", err)
+                    if FAIL_OPEN then
+                        core.log.warn("FAIL_OPEN=true: Allowing request without security scan")
+                        ctx.audit_request_body = body
+                        return
+                    else
+                        core.response.exit(503, "Security service unavailable")
+                        return
+                    end
+                end
+                
+                if res.status >= 500 then
+                    core.log.error("Sidecar internal error: ", res.status)
+                    if FAIL_OPEN then
+                        ctx.audit_request_body = body
+                        return
+                    else
+                        core.response.exit(503, "Security check failed")
+                        return
+                    end
+                end
+                
+                if res.status == 200 then
+                    local latency = res.headers["X-Latency-Ms"]
+                    if latency then
+                        core.request.set_header(ctx, "X-Guard-Latency-Ms", latency)
+                    end
+                    ctx.audit_request_body = body
+                    return
+                elseif res.status == 403 then
+                    local blocked_by = res.headers["X-Blocked-By"] or "unknown"
+                    core.response.exit(403, "Blocked by security: " .. blocked_by)
+                    return
+                else
+                    core.log.error("Sidecar returned unexpected status: ", res.status)
+                    core.response.exit(500, "Security check failed")
+                    return
+                end
+            end
+      # 2. OUTPUT: Async logging via http-logger (NOT blocking!)
+      # Response streams directly to client - zero latency overhead
+      # http-logger collects request+response and sends batch to Sidecar
+      http-logger:
+        uri: "http://sidecar:8000/v1/audit/ingest"
+        batch_max_size: 10        # Send every 10 requests
+        inactive_timeout: 5       # Or every 5 seconds
+        buffer_duration: 5        # Buffer for 5 seconds
+        concat_method: json       # Send as JSON array
+        include_req_body: true    # Include request body
+        include_resp_body: true   # Include response body (for PII scan!)
+        include_resp_body_expr:
+          - ["resp_status", "<", 500]  # Only for successful responses
+      # 3. Rewrite: Remove /api/llm-audit/ prefix
+      proxy-rewrite:
+        regex_uri: ["^/api/llm-audit/(.*)", "/$1"]
+
+  # === DIRECT GUARD ENDPOINT ===
+  # For clients that can call the guard directly
+  - id: route_guard
+    uri: /v1/guard
+    upstream_id: upstream_sidecar
+    plugins:
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+        rejected_code: 429
+
+  # === HEALTH CHECKS ===
+  - id: route_health
+    uri: /health
+    upstream_id: upstream_sidecar
+    plugins:
+      limit-req:
+        rate: 50
+        burst: 20
+        key: remote_addr
+        rejected_code: 429
+
+  - id: route_guard_health
+    uri: /v1/guard/health
+    upstream_id: upstream_sidecar
+    plugins:
+      limit-req:
+        rate: 50
+        burst: 20
+        key: remote_addr
+        rejected_code: 429
+
+  # === PROMETHEUS METRICS ===
+  - id: route_metrics
+    uri: /metrics
+    upstream_id: upstream_sidecar
+    plugins:
+      limit-req:
+        rate: 5
+        burst: 2
+        key: remote_addr
+        rejected_code: 429
+
+#END

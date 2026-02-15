@@ -1,0 +1,139 @@
+# SafeLLM OSS Helm Values
+# Default values for safellm-oss
+
+# -- Number of sidecar replicas
+replicaCount: 1
+
+image:
+  # -- Image repository
+  repository: ghcr.io/safellm/sidecar-oss
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Image tag (defaults to Chart appVersion)
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# -- SafeLLM configuration
+safellm:
+  # -- Edition (oss or enterprise)
+  edition: oss
+
+  # -- Enable metrics endpoint
+  enableMetrics: true
+
+  # -- Enable audit logging (Enterprise only)
+  enableAuditLogs: false
+
+  # -- Fail-open mode (allow traffic if sidecar fails)
+  failOpen: false
+
+  # -- Shadow mode (log only, don't block)
+  # Default: true for safe onboarding - disable to enable blocking
+  shadowMode: true
+
+  # -- Enable L0 Cache
+  enableCache: true
+
+  # -- Enable L1 Keywords filter
+  enableKeywords: true
+
+  # -- Enable L1.5 PII detection
+  enablePII: true
+
+  # -- Use fast regex PII (true) or GLiNER (false, Enterprise only)
+  useFastPII: true
+
+# -- Redis configuration
+redis:
+  # -- Enable bundled Redis
+  enabled: true
+  # -- External Redis host (if redis.enabled=false)
+  host: ""
+  # -- Redis port
+  port: 6379
+
+  # Bitnami Redis subchart values
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 1Gi
+
+# -- Service configuration
+service:
+  type: ClusterIP
+  port: 8000
+  # -- Annotations for the service
+  annotations: {}
+
+# -- Ingress configuration (optional)
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: safellm.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# -- Resource limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# -- Pod security context
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+
+# -- Container security context
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+# -- Liveness probe
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+# -- Readiness probe
+readinessProbe:
+  httpGet:
+    path: /v1/guard/health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 5
+
+# -- Node selector
+nodeSelector: {}
+
+# -- Tolerations
+tolerations: []
+
+# -- Affinity rules
+affinity: {}
+
+# -- Pod annotations
+podAnnotations: {}
+
+# -- Service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""

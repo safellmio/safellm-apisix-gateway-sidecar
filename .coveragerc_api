@@ -1,0 +1,17 @@
+[run]
+source = sidecar/api
+omit =
+    */test_*
+    */tests/*
+    sidecar/api/frontend/*
+    */frontend/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod

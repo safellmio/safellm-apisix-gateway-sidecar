@@ -1,0 +1,87 @@
+# ============================================================================
+# SafeLLM OSS Docker Compose - RELEASE VERSION
+# ============================================================================
+# This is the production-ready compose file with PINNED versions.
+# Use for deployments - never use 'latest' tags in production.
+#
+# Version: 2.0.0
+# Generated: 2026-01-31
+# ============================================================================
+
+x-version: &safellm-version "2.0.0"
+
+services:
+  apisix:
+    # Pinned to specific version - update deliberately
+    image: apache/apisix:3.14.1-debian
+    restart: unless-stopped
+    volumes:
+      - ./config/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./config/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    ports:
+      - "9080:9080"
+    networks:
+      - frontend-net
+      - backend-net
+    depends_on:
+      sidecar:
+        condition: service_healthy
+
+  sidecar:
+    # Use published image instead of build
+    image: ghcr.io/safellm/sidecar-oss:2.0.0
+    restart: unless-stopped
+    environment:
+      SAFELLM_EDITION: oss
+      ENABLE_METRICS: "true"
+      ENABLE_AUDIT_LOGS: "false"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - backend-net
+      - monitor-net
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    # Pinned to major.minor for stability
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      backend-net:
+        aliases:
+          - redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Optional: Use nginx instead of httpbin for production
+  upstream:
+    image: nginx:1.25-alpine
+    networks:
+      - backend-net
+
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+    internal: true
+  monitor-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

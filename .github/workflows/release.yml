@@ -18,7 +18,7 @@ on:
 
 env:
   REGISTRY_GHCR: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/sidecar-oss
+  IMAGE_NAME: safellmio/safellm-apisix-gateway-sidecar
 
 jobs:
   build-and-push:
@@ -82,7 +82,6 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
         id: build
@@ -108,60 +107,65 @@ jobs:
           echo "" >> checksums.txt
           echo "Pull commands:" >> checksums.txt
           echo "  docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}" >> checksums.txt
+          echo "  docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major_minor }}" >> checksums.txt
+          echo "  docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.major }}" >> checksums.txt
           echo "  docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}" >> checksums.txt
+
+      - name: Package Helm chart
+        run: |
+          helm package helm/safellm-oss --destination .
 
       - name: Generate release notes
         id: notes
         run: |
           cat << 'EOF' > release_notes.md
-          ## SafeLLM OSS v${{ steps.version.outputs.version }}
+          ## What's included
+          - SafeLLM OSS container image for `linux/amd64` and `linux/arm64`
+          - Helm chart `safellm-oss` (version `${{ steps.version.outputs.version }}`)
+          - Production `docker-compose.release.yaml`
+          - Immutable image digest for supply-chain verification
 
-          ### Docker Images
+          ## How to run
 
+          ### Kubernetes (Helm, recommended)
           ```bash
-          # Pull by version tag (recommended)
-          docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-
-          # Pull by digest (immutable)
-          docker pull ${{ env.REGISTRY_GHCR }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          helm repo add safellm https://safellm.github.io/charts
+          helm repo update
+          helm install safellm safellm/safellm-oss --version ${{ steps.version.outputs.version }}
           ```
 
-          ### Quick Start
-
+          ### Docker Compose
           ```bash
-          # Using docker-compose
           curl -O https://raw.githubusercontent.com/${{ github.repository }}/v${{ steps.version.outputs.version }}/docker-compose.release.yaml
           docker compose -f docker-compose.release.yaml up -d
           ```
 
-          ### Helm
+          ## Docker images
 
           ```bash
-          helm repo add safellm https://safellm.github.io/charts
-          helm install safellm safellm/safellm-oss --version ${{ steps.version.outputs.version }}
+          ghcr.io/safellmio/safellm-apisix-gateway-sidecar:${{ steps.version.outputs.version }}
+          ghcr.io/safellmio/safellm-apisix-gateway-sidecar:${{ steps.version.outputs.major_minor }}
+          ghcr.io/safellmio/safellm-apisix-gateway-sidecar:${{ steps.version.outputs.major }}
           ```
 
-          ### Image Details
+          Digest:
+          - `${{ steps.build.outputs.digest }}`
 
-          | Property | Value |
-          |----------|-------|
-          | **Digest** | `${{ steps.build.outputs.digest }}` |
-          | **Platforms** | `linux/amd64`, `linux/arm64` |
-          | **Edition** | OSS |
+          ## Breaking changes
+          - None.
 
-          ---
-
-          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for detailed changes.
+          See [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for full details.
           EOF
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          name: SafeLLM OSS v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           body_path: release_notes.md
           files: |
             checksums.txt
             docker-compose.release.yaml
+            safellm-oss-${{ steps.version.outputs.version }}.tgz
           draft: false
           prerelease: false
         env:

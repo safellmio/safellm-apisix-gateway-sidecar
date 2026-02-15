@@ -12,9 +12,9 @@ keywords:
   - pii
   - prompt-injection
 
-home: https://github.com/safellm/safellm
+home: https://github.com/safellmio/safellm-apisix-gateway-sidecar
 sources:
-  - https://github.com/safellm/safellm
+  - https://github.com/safellmio/safellm-apisix-gateway-sidecar
 
 maintainers:
   - name: SafeLLM Team

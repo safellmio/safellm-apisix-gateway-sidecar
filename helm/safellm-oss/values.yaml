@@ -6,7 +6,7 @@ replicaCount: 1
 
 image:
   # -- Image repository
-  repository: ghcr.io/safellm/sidecar-oss
+  repository: ghcr.io/safellmio/safellm-apisix-gateway-sidecar
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Image tag (defaults to Chart appVersion)

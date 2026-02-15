@@ -29,7 +29,7 @@ services:
 
   sidecar:
     # Use published image instead of build
-    image: ghcr.io/safellm/sidecar-oss:2.0.0
+    image: ghcr.io/safellmio/safellm-apisix-gateway-sidecar:2.0.0
     restart: unless-stopped
     environment:
       SAFELLM_EDITION: oss

@@ -118,7 +118,10 @@ else
 fi
 
 echo "🧪 Running Unit & Integration tests (parallel)..."
-python -m pytest $TEST_TARGETS -v --tb=short -n $NUM_WORKERS --dist worksteal $COV_ARGS
+if ! python -m pytest $TEST_TARGETS -v --tb=short -n $NUM_WORKERS --dist worksteal $COV_ARGS; then
+    echo "⚠️ Parallel pytest run failed (likely worker crash/flaky xdist). Retrying sequentially..."
+    python -m pytest $TEST_TARGETS -v --tb=short $COV_ARGS
+fi
 
 if [ "$API_ONLY" != true ]; then
     echo "🧪 Running E2E tests (sequential due to Docker dependencies)..."

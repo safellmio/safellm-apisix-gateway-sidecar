@@ -10,7 +10,15 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Sequential fallback in `run_tests.sh` when parallel xdist workers crash, improving CI stability on constrained environments.
 
 ### Fixed
-- Closed reviewed OSS findings `REV-008..REV-018` and `REV-031` (security hardening, DLP correctness, Redis/settings consistency, observability improvements).
+- Masked sensitive PII values in metadata and logs, with an explicit debug gate for controlled raw-value diagnostics.
+- Restricted `/auth` to `POST` and hardened management/auth key verification paths.
+- Fixed DLP normalization/offset handling so anonymization is applied consistently on the analyzed text.
+- Added locking for audit statistics updates to prevent lost increments under concurrency.
+- Increased request ID length to reduce collision risk in high-throughput log correlation.
+- Replaced deprecated UTC datetime usage with timezone-aware timestamps.
+- Moved Redis secret handling to `SecretStr` and unified Redis config to a single validated settings source.
+- Improved regex safety validation for custom PII patterns to reduce catastrophic backtracking risk.
+- Corrected confidence-threshold filtering logic so low-confidence entities are not incorrectly accepted.
 
 ### Changed
 - Release metadata bumped to `2.1.0` across package/runtime (`VERSION`, `pyproject.toml`, `sidecar/app.py`), Helm chart, release compose, and Docker usage docs.

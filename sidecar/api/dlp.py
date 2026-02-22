@@ -38,14 +38,16 @@ Edition Gating:
 import uuid
 from typing import Optional
 import logging
+import asyncio
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
 from ..core.settings import get_settings
 from ..core.telemetry import DLP_AUDIT_TRUNCATIONS
 from ..edition import is_feature_available, get_edition
 from ..layers.dlp import DLPScanner
+from .deps import require_management_api_key
 
 _dlp_logger = logging.getLogger(__name__)
 
@@ -288,6 +290,7 @@ _audit_stats = {
     "entities_by_type": {},
     "last_ingest_time": None,
 }
+_audit_stats_lock = asyncio.Lock()
 
 
 def reset_audit_stats():
@@ -421,8 +424,9 @@ async def audit_ingest(
     
     # If DLP is disabled, still count the ingested items but don't scan for PII
     if not settings.ENABLE_DLP:
-        _audit_stats["total_ingested"] += len(items)
-        _audit_stats["last_ingest_time"] = datetime.now(timezone.utc).isoformat()
+        async with _audit_stats_lock:
+            _audit_stats["total_ingested"] += len(items)
+            _audit_stats["last_ingest_time"] = datetime.now(timezone.utc).isoformat()
         return AuditIngestResponse(
             ingested=len(items),
             pii_detected=0,
@@ -443,9 +447,10 @@ async def audit_ingest(
                     # Update stats
                     for entity in result.entities:
                         entity_type = entity.get("entity_type", "UNKNOWN")
-                        _audit_stats["entities_by_type"][entity_type] = (
-                            _audit_stats["entities_by_type"].get(entity_type, 0) + 1
-                        )
+                        async with _audit_stats_lock:
+                            _audit_stats["entities_by_type"][entity_type] = (
+                                _audit_stats["entities_by_type"].get(entity_type, 0) + 1
+                            )
                     
                     # Log for audit (hash response, don't log raw PII!)
                     response_hash = hashlib.sha256(
@@ -465,9 +470,10 @@ async def audit_ingest(
                 logger.error(f"Audit scan error: {e}")
     
     # Update global stats
-    _audit_stats["total_ingested"] += len(items)
-    _audit_stats["pii_detected"] += pii_detected_count
-    _audit_stats["last_ingest_time"] = datetime.now(timezone.utc).isoformat()
+    async with _audit_stats_lock:
+        _audit_stats["total_ingested"] += len(items)
+        _audit_stats["pii_detected"] += pii_detected_count
+        _audit_stats["last_ingest_time"] = datetime.now(timezone.utc).isoformat()
     
     elapsed_ms = (time.perf_counter() - start) * 1000
     
@@ -479,7 +485,9 @@ async def audit_ingest(
 
 
 @audit_router.get("/stats")
-async def audit_stats() -> dict:
+async def audit_stats(
+    _auth: bool = Depends(require_management_api_key),
+) -> dict:
     """
     Get audit mode statistics.
     
@@ -492,17 +500,26 @@ async def audit_stats() -> dict:
     settings = get_settings()
     effective_mode = _get_effective_dlp_mode(settings.DLP_MODE)
     
+    async with _audit_stats_lock:
+        stats_snapshot = {
+            "total_ingested": _audit_stats["total_ingested"],
+            "pii_detected": _audit_stats["pii_detected"],
+            "entities_by_type": dict(_audit_stats["entities_by_type"]),
+            "last_ingest_time": _audit_stats["last_ingest_time"],
+        }
     return {
         "streaming_mode": settings.DLP_STREAMING_MODE,
         "enabled": settings.ENABLE_DLP,
         "edition": get_edition(),
         "effective_mode": effective_mode,
-        **_audit_stats
+        **stats_snapshot,
     }
 
 
 @audit_router.get("/health")
-async def audit_health() -> dict:
+async def audit_health(
+    _auth: bool = Depends(require_management_api_key),
+) -> dict:
     """Check audit mode health."""
     settings = get_settings()
     effective_mode = _get_effective_dlp_mode(settings.DLP_MODE)

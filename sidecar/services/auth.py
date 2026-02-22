@@ -74,7 +74,11 @@ class AuthService:
                 redis_db=self.settings.REDIS_DB,
                 ttl=self.settings.REDIS_TTL,
                 connection_timeout=self.settings.REDIS_TIMEOUT,
-                password=self.settings.REDIS_PASSWORD,
+                password=(
+                    self.settings.REDIS_PASSWORD.get_secret_value()
+                    if self.settings.REDIS_PASSWORD
+                    else None
+                ),
             )
             layers.append(cache)
             enabled.add("L0_CACHE")

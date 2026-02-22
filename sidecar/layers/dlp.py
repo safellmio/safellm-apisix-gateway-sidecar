@@ -32,6 +32,7 @@ from typing import Optional
 import logging
 
 from ..core.text import normalize_text
+from ..core.pii_masking import build_entity_text_fields
 
 # Presidio - optional dependency
 try:
@@ -287,13 +288,16 @@ class DLPScanner:
             )
 
             # Convert to dict format
+            from ..core.settings import get_settings
+            settings = get_settings()
+            include_debug_raw = settings.PII_DEBUG_INCLUDE_RAW and settings.LOG_LEVEL.upper() == "DEBUG"
             raw_entities = [
                 {
                     "entity_type": r.entity_type,
                     "score": r.score,
                     "start": r.start,
                     "end": r.end,
-                    "text": text[r.start:r.end]
+                    **build_entity_text_fields(r.entity_type, text[r.start:r.end], include_debug_raw),
                 }
                 for r in results
             ]
@@ -301,11 +305,12 @@ class DLPScanner:
             # Use fast PII fallback
             raw_entities = self._fast_detector.detect(text, entities=self._entities)
             # Convert confidence to score for consistency and filter by threshold
-            raw_entities = [
-                {**entity, "score": entity.pop("confidence", 0.9)}
-                for entity in raw_entities
-                if entity.get("confidence", 0.9) >= self._threshold
-            ]
+            converted_entities = []
+            for entity in raw_entities:
+                conf = entity.get("confidence", 0.9)
+                if conf >= self._threshold:
+                    converted_entities.append({**entity, "score": conf})
+            raw_entities = converted_entities
         else:
             raw_entities = []
 
@@ -449,7 +454,7 @@ class DLPScanner:
 
             elif self._mode == "anonymize":
                 # Replace PII with [REDACTED]
-                anonymized = self._anonymize_text(text, entities)
+                anonymized = self._anonymize_text(normalized_text, entities)
                 self._record_metric("anonymized", latency_sec, entities)
                 return DLPResult(
                     safe=True,  # Safe after anonymization

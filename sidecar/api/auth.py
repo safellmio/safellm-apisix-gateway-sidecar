@@ -38,7 +38,7 @@ async def _read_body_with_limit(request: Request, max_size: int) -> tuple[bytes,
     return bytes(chunks), False
 
 
-@router.api_route("/auth", methods=["GET", "POST"])
+@router.post("/auth")
 async def auth(
     request: Request,
     service: AuthService = Depends(get_auth_service)
@@ -55,7 +55,7 @@ async def auth(
         413 Entity Too Large - Body exceeds MAX_BODY_SIZE
     """
     settings = get_settings()
-    request_id = request.headers.get("x-request-id", str(uuid.uuid4())[:8])
+    request_id = request.headers.get("x-request-id", uuid.uuid4().hex[:16])
     
     # === BODY EXTRACTION ===
     # Check Content-Length before reading to prevent memory exhaustion

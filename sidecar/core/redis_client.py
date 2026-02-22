@@ -16,10 +16,10 @@ Environment Variables:
     REDIS_PASSWORD=<optional>
     REDIS_TIMEOUT=0.5
 """
-import os
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Optional
+from .settings import get_settings
 
 # Redis - optional dependency
 try:
@@ -49,12 +49,14 @@ def get_redis_config() -> RedisConfig:
     
     Returns cached config - call get_redis_config.cache_clear() to reload.
     """
+    settings = get_settings()
+    password = settings.REDIS_PASSWORD.get_secret_value() if settings.REDIS_PASSWORD else None
     return RedisConfig(
-        host=os.getenv("REDIS_HOST", "localhost"),
-        port=int(os.getenv("REDIS_PORT", "6379")),
-        db=int(os.getenv("REDIS_DB", "0")),
-        password=os.getenv("REDIS_PASSWORD"),
-        timeout=float(os.getenv("REDIS_TIMEOUT", "0.5")),
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=password,
+        timeout=settings.REDIS_TIMEOUT,
     )
 
 
@@ -107,7 +109,7 @@ async def _get_standalone_client(
 
 def create_sync_redis_client(
     config: Optional[RedisConfig] = None,
-) -> "aioredis.Redis":
+) -> "redis.Redis":
     """
     Create synchronous Redis client (for non-async contexts).
     """

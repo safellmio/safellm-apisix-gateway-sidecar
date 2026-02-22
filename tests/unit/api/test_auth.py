@@ -39,14 +39,13 @@ class TestAuthAPI:
 
     @pytest.mark.asyncio
     async def test_auth_endpoint_get_method(self, client: AsyncClient):
-        """Test that auth endpoint accepts GET method."""
+        """Test that auth endpoint rejects GET method."""
         headers = {"X-Forwarded-URI": "/api/chat"}
         params = {"message": "Hello world"}
 
         response = await client.get("/auth", headers=headers, params=params)
 
-        assert response.status_code == 200
-        assert response.headers.get("X-Auth-Result") == "allowed"
+        assert response.status_code == 405
 
     @pytest.mark.asyncio
     async def test_auth_endpoint_no_uri_header(self, client: AsyncClient):
@@ -99,19 +98,16 @@ class TestAuthAPI:
         assert response.status_code == 403
         assert "blocked: ignore instructions" in response.text
 
-    @pytest.mark.parametrize("method", ["GET", "POST"])
+    @pytest.mark.parametrize("method", ["POST"])
     @pytest.mark.asyncio
     async def test_auth_endpoint_methods(self, client: AsyncClient, method):
-        """Test that auth endpoint accepts both GET and POST."""
+        """Test that auth endpoint accepts only POST."""
         headers = {
             "Content-Type": "application/json",
             "X-Forwarded-URI": "/api/chat"
         }
         data = {"message": "clean"}
 
-        if method == "GET":
-            response = await client.get("/auth", headers=headers, params=data)
-        else:
-            response = await client.post("/auth", headers=headers, json=data)
+        response = await client.post("/auth", headers=headers, json=data)
 
         assert response.status_code == 200

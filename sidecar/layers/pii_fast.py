@@ -14,6 +14,7 @@ from typing import List, Dict, Optional
 from .base import SecurityLayer, ScanContext, ScanResult
 from ..core.text import normalize_text
 from ..core.settings import get_settings
+from ..core.pii_masking import build_entity_text_fields
 
 
 def _luhn_checksum(card_number: str) -> bool:
@@ -147,6 +148,8 @@ class FastPIIDetector:
     @classmethod
     def detect(cls, text: str, entities: Optional[List[str]] = None) -> List[Dict]:
         detected_entities: List[Dict] = []
+        settings = get_settings()
+        include_debug_raw = settings.PII_DEBUG_INCLUDE_RAW and settings.LOG_LEVEL.upper() == "DEBUG"
         patterns, custom_entities, custom_max_len = cls._get_patterns()
         if entities:
             target_entities = [e.strip().upper() for e in entities if isinstance(e, str)]
@@ -186,12 +189,12 @@ class FastPIIDetector:
                     "entity_type": entity_type,
                     "start": match.start(),
                     "end": match.end(),
-                    "text": matched_text,
+                    **build_entity_text_fields(entity_type, matched_text, include_debug_raw),
                     "confidence": confidence,
                 })
 
         # Run aggressive patterns for obfuscated data
-        cls._detect_obfuscated(text, detected_entities, matched_positions)
+        cls._detect_obfuscated(text, detected_entities, matched_positions, include_debug_raw)
 
         return detected_entities
 
@@ -200,7 +203,8 @@ class FastPIIDetector:
         cls,
         text: str,
         detected_entities: List[Dict],
-        matched_positions: set[tuple[int, int]]
+        matched_positions: set[tuple[int, int]],
+        include_debug_raw: bool,
     ) -> None:
         """
         Detect obfuscated PII patterns (e.g., spaced-out credit cards).
@@ -251,7 +255,7 @@ class FastPIIDetector:
                     "entity_type": entity_type,
                     "start": match.start(),
                     "end": match.end(),
-                    "text": matched_text,
+                    **build_entity_text_fields(entity_type, matched_text, include_debug_raw),
                     "confidence": confidence,
                     "obfuscation_detected": True,
                 })

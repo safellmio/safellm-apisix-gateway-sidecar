@@ -106,14 +106,14 @@ if [ "$COVERAGE" = true ]; then
     else
         echo "🎯 Target: Full project (sidecar)"
         COV_ARGS="--cov=sidecar --cov-report=term-missing --cov-report=html:htmlcov"
-        TEST_TARGETS="tests/unit/ tests/integration/ tests/*.py"
+        TEST_TARGETS="tests/unit/ tests/integration/ tests/test_*.py"
     fi
 else
     COV_ARGS=""
     if [ "$API_ONLY" = true ]; then
         TEST_TARGETS="tests/unit/api/ tests/integration/api/"
     else
-        TEST_TARGETS="tests/unit/ tests/integration/ tests/*.py"
+        TEST_TARGETS="tests/unit/ tests/integration/ tests/test_*.py"
     fi
 fi
 

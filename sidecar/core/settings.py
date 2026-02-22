@@ -10,8 +10,22 @@ Example .env file:
     LOG_LEVEL=DEBUG
 """
 from functools import lru_cache
-from pydantic import field_validator, model_validator, ConfigDict
+import re
+from pydantic import field_validator, model_validator, ConfigDict, SecretStr
 from pydantic_settings import BaseSettings
+
+_NESTED_QUANTIFIER_RE = re.compile(r"\((?:[^()\\]|\\.)+[+*](?:[^()\\]|\\.)*\)[+*{]")
+
+
+def _has_potential_regex_redos(pattern: str) -> bool:
+    """
+    Heuristic check for catastrophic-backtracking patterns.
+    Reject obvious risky constructs before runtime.
+    """
+    if _NESTED_QUANTIFIER_RE.search(pattern):
+        return True
+    risky_tokens = ("(.+)+", "(.*)+", "(.+)*", "(.*)*", "(\\w+)+", "(\\d+)+")
+    return any(token in pattern for token in risky_tokens)
 
 
 class Settings(BaseSettings):
@@ -115,7 +129,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = 0
     REDIS_TTL: int = 3600  # 1 hour cache
     REDIS_TIMEOUT: float = 0.5  # Connection timeout
-    REDIS_PASSWORD: str | None = None  # Optional Redis auth
+    REDIS_PASSWORD: SecretStr | None = None  # Optional Redis auth
     
     # === Audit Logs ===
     # Reserved for enterprise; no-op in OSS.
@@ -196,6 +210,8 @@ class Settings(BaseSettings):
     # === Logging ===
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"  # "json" or "text"
+    PII_DEBUG_INCLUDE_RAW: bool = False
+    MANAGEMENT_API_KEY: SecretStr | None = None
     
     # === Observability ===
     # Feature flag dla Prometheus metrics
@@ -300,6 +316,10 @@ class Settings(BaseSettings):
                     raise ValueError(
                         f"Custom regex '{name}' too long: "
                         f"{len(pattern)} > {self.CUSTOM_FAST_PII_MAX_PATTERN_LENGTH}"
+                    )
+                if _has_potential_regex_redos(pattern):
+                    raise ValueError(
+                        f"Custom regex '{name}' rejected due to potential ReDoS risk"
                     )
                 normalized[name.strip().upper()] = pattern
             self.CUSTOM_FAST_PII_PATTERNS = normalized

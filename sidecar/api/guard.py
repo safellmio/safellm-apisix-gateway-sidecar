@@ -31,7 +31,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, HTTPException
 from pydantic import BaseModel, field_validator
 
-from .deps import get_auth_service
+from .deps import get_auth_service, require_management_api_key
 from ..services.auth import AuthService
 from ..core.settings import get_settings
 
@@ -114,7 +114,7 @@ async def guard(
             pass  # Invalid content-length header, ignore
     
     # Generate request ID for correlation
-    request_id = request.headers.get("x-request-id", str(uuid.uuid4())[:8])
+    request_id = request.headers.get("x-request-id", uuid.uuid4().hex[:16])
     
     # Execute pipeline (with request coalescing)
     result = await service.decide_async(
@@ -135,6 +135,7 @@ async def guard(
 
 @router.get("/guard/health")
 async def guard_health(
+    _auth: bool = Depends(require_management_api_key),
     service: AuthService = Depends(get_auth_service)
 ) -> dict:
     """Check health of security layers."""
@@ -150,6 +151,7 @@ async def guard_health(
 
 @router.get("/guard/stats")
 async def guard_stats(
+    _auth: bool = Depends(require_management_api_key),
     service: AuthService = Depends(get_auth_service)
 ) -> dict:
     """

@@ -19,6 +19,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from .base import SecurityLayer, ScanContext, ScanResult
+from ..core.pii_masking import build_entity_text_fields
+from ..core.settings import get_settings
 
 # Presidio - optional dependency
 try:
@@ -171,13 +173,15 @@ class PIILayer(SecurityLayer):
         )
         
         # Filter by threshold (already applied by analyzer, but double-check)
+        settings = get_settings()
+        include_debug_raw = settings.PII_DEBUG_INCLUDE_RAW and settings.LOG_LEVEL.upper() == "DEBUG"
         filtered = [
             {
                 "entity_type": r.entity_type,
                 "score": r.score,
                 "start": r.start,
                 "end": r.end,
-                "text": text[r.start:r.end],
+                **build_entity_text_fields(r.entity_type, text[r.start:r.end], include_debug_raw),
             }
             for r in results
             if r.score >= self._threshold

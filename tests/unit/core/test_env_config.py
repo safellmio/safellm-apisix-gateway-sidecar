@@ -53,3 +53,10 @@ class TestEnvConfigOSS:
             
             assert "ACME_ID" in custom_entities
             assert "ACME_ID" in patterns
+
+    def test_custom_regex_redos_pattern_rejected(self):
+        """Reject custom regex with catastrophic-backtracking shape."""
+        bad_config = {"CUSTOM_FAST_PII_PATTERNS": '{"EVIL":"(a+)+$"}'}
+        with patch.dict(os.environ, bad_config):
+            with pytest.raises(ValueError, match="ReDoS risk"):
+                Settings()

@@ -326,7 +326,7 @@ def generate_request_id() -> str:
     Uses UUID4 for uniqueness. Call this if X-Request-Id header not present.
     """
     import uuid
-    return str(uuid.uuid4())[:8]  # Short form for readability
+    return uuid.uuid4().hex[:16]
 
 
 # === Middleware Helper ===

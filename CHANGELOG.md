@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [2.1.0] - 2026-02-22
+
+### Added
+- Sequential fallback in `run_tests.sh` when parallel xdist workers crash, improving CI stability on constrained environments.
+
+### Fixed
+- Closed reviewed OSS findings `REV-008..REV-018` and `REV-031` (security hardening, DLP correctness, Redis/settings consistency, observability improvements).
+
+### Changed
+- Release metadata bumped to `2.1.0` across package/runtime (`VERSION`, `pyproject.toml`, `sidecar/app.py`), Helm chart, release compose, and Docker usage docs.
+
 ## [2.0.0] - 2026-02-15
 
 ### Added

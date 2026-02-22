@@ -41,18 +41,18 @@ curl -i http://localhost:9080/api/post \
 ## Docker Image (Docker Hub)
 
 Published image:
-- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.0.0`
-- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.0`
+- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1.0`
+- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1`
 - `docker.io/safellm/safellm-apisix-gateway-sidecar:2`
 
 Quick test with published image only:
 
 ```bash
-docker pull safellm/safellm-apisix-gateway-sidecar:2.0.0
+docker pull safellm/safellm-apisix-gateway-sidecar:2.1.0
 docker run --rm -p 8000:8000 \
   -e ENABLE_CACHE=false \
   -e SHADOW_MODE=false \
-  safellm/safellm-apisix-gateway-sidecar:2.0.0
+  safellm/safellm-apisix-gateway-sidecar:2.1.0
 ```
 
 In another shell:

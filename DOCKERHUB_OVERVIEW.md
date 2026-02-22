@@ -13,21 +13,21 @@ It scans prompts before they reach your model and provides layered protections w
 
 ## Image Tags
 
-- `safellm/safellm-apisix-gateway-sidecar:2.0.0` (recommended, immutable release)
-- `safellm/safellm-apisix-gateway-sidecar:2.0`
+- `safellm/safellm-apisix-gateway-sidecar:2.1.0` (recommended, immutable release)
+- `safellm/safellm-apisix-gateway-sidecar:2.1`
 - `safellm/safellm-apisix-gateway-sidecar:2`
 
-Current 2.0.0 manifest digest:
-- `sha256:a3b3ebbd1ece83d0b6aa3b5111381ce8d8b9a6bc1857c2fb81d6aaee14af359f`
+Current 2.1.0 manifest digest:
+- `TBD after publish`
 
 ## Quick Run (No Redis)
 
 ```bash
-docker pull safellm/safellm-apisix-gateway-sidecar:2.0.0
+docker pull safellm/safellm-apisix-gateway-sidecar:2.1.0
 docker run --rm -p 8000:8000 \
   -e ENABLE_CACHE=false \
   -e SHADOW_MODE=false \
-  safellm/safellm-apisix-gateway-sidecar:2.0.0
+  safellm/safellm-apisix-gateway-sidecar:2.1.0
 ```
 
 Then test:

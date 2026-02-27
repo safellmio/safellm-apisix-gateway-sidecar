@@ -1,0 +1,18 @@
+apisix:
+  node_listen: 9080
+  enable_ipv6: false
+
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+
+plugins:
+  - proxy-rewrite
+  - serverless-pre-function
+  - limit-req
+
+nginx_config:
+  error_log_level: warn
+  http:
+    client_max_body_size: 1m

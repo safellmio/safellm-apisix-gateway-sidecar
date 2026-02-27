@@ -1,0 +1,116 @@
+upstreams:
+  - id: upstream_llm
+    type: roundrobin
+    nodes:
+      "upstream:80": 1
+
+  - id: upstream_sidecar
+    type: roundrobin
+    nodes:
+      "sidecar:8000": 1
+
+routes:
+  - id: route_direct
+    uri: /direct/*
+    upstream_id: upstream_llm
+    plugins:
+      proxy-rewrite:
+        regex_uri: ["^/direct/(.*)", "/$1"]
+
+  - id: route_protected
+    uri: /api/*
+    upstream_id: upstream_llm
+    plugins:
+      limit-req:
+        rate: 100
+        burst: 50
+        key: remote_addr
+        rejected_code: 429
+      serverless-pre-function:
+        phase: rewrite
+        functions:
+          - |
+            return function(conf, ctx)
+                local core = require("apisix.core")
+                local http = require("resty.http")
+
+                local fail_open = os.getenv("SAFELLM_FAIL_OPEN") == "true"
+                local timeout_ms = tonumber(os.getenv("SAFELLM_TIMEOUT_MS")) or 3000
+                local max_body_size = tonumber(os.getenv("SAFELLM_MAX_BODY_SIZE")) or 1048576
+
+                ngx.req.read_body()
+                local body = ngx.req.get_body_data()
+
+                if not body then
+                    local file_path = ngx.req.get_body_file()
+                    if file_path then
+                        local file = io.open(file_path, "rb")
+                        if file then
+                            body = file:read("*a")
+                            file:close()
+                        end
+                    end
+                end
+
+                if not body or #body == 0 then
+                    return
+                end
+
+                if #body > max_body_size then
+                    core.response.exit(413, "Request body too large")
+                    return
+                end
+
+                local httpc = http.new()
+                httpc:set_timeout(timeout_ms)
+                local res, err = httpc:request_uri("http://sidecar:8000/auth", {
+                    method = "POST",
+                    body = body,
+                    headers = {
+                        ["Content-Type"] = ngx.req.get_headers()["Content-Type"] or "application/json",
+                        ["X-Original-URI"] = ngx.var.request_uri
+                    }
+                })
+
+                if not res then
+                    core.log.error("sidecar unavailable: ", err)
+                    if fail_open then
+                        return
+                    end
+                    core.response.exit(503, "Security service unavailable")
+                    return
+                end
+
+                if res.status == 200 then
+                    return
+                end
+
+                if res.status == 403 then
+                    core.response.exit(403, "Blocked by SafeLLM")
+                    return
+                end
+
+                if fail_open then
+                    return
+                end
+                core.response.exit(503, "Security check failed")
+            end
+      proxy-rewrite:
+        regex_uri: ["^/api/(.*)", "/$1"]
+
+  - id: route_guard
+    uri: /v1/guard
+    methods: ["POST"]
+    upstream_id: upstream_sidecar
+
+  - id: route_health
+    uri: /health
+    methods: ["GET"]
+    upstream_id: upstream_sidecar
+
+  - id: route_metrics
+    uri: /metrics
+    methods: ["GET"]
+    upstream_id: upstream_sidecar
+
+#END

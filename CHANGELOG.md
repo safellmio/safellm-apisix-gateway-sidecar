@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ### Added
 - Sequential fallback in `run_tests.sh` when parallel xdist workers crash, improving CI stability on constrained environments.
+- New `examples/apisix-reference` deployment bundle (standalone APISIX + SafeLLM + Redis + upstream + smoke test script) for quick first-time APISIX evaluation.
 
 ### Fixed
 - Masked sensitive PII values in metadata and logs, with an explicit debug gate for controlled raw-value diagnostics.

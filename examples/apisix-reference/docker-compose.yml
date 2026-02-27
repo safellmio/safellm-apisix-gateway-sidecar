@@ -2,6 +2,10 @@ services:
   apisix:
     image: apache/apisix:3.14.1-debian
     restart: unless-stopped
+    environment:
+      SAFELLM_FAIL_OPEN: "${SAFELLM_FAIL_OPEN:-false}"
+      SAFELLM_TIMEOUT_MS: "${SAFELLM_TIMEOUT_MS:-3000}"
+      SAFELLM_MAX_BODY_SIZE: "${SAFELLM_MAX_BODY_SIZE:-1048576}"
     volumes:
       - ./apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
       - ./apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro

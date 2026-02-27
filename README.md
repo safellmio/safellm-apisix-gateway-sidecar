@@ -49,7 +49,7 @@ Reference docs:
 - Malicious requests are **logged** with `shadow_would_block=true`
 - Check logs: `docker compose logs sidecar | grep shadow_would_block`
 
-**To enable blocking**, set `SHADOW_MODE=false` in docker-compose.yaml:
+**To enable blocking**, set `SHADOW_MODE=false` in `.env` (or compose environment) and restart:
 - Safe requests -> 200
 - Malicious requests -> 403 (`Blocked by security: L1_KEYWORDS`)
 

@@ -113,4 +113,6 @@ routes:
     methods: ["GET"]
     upstream_id: upstream_sidecar
 
+# APISIX standalone YAML loader requires a trailing '#END' marker.
+# Do not remove this line.
 #END

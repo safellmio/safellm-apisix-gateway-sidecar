@@ -243,6 +243,42 @@ class TestDockerE2E:
         assert result.exit_code == 0
         assert b"httpbin" in result.output.lower()
 
+    def test_mcp_stdio_tools_in_container(self, docker_client, compose_project_name):
+        """Validate MCP stdio server behavior inside sidecar container."""
+        containers = docker_client.containers.list(
+            filters={
+                "label": [
+                    f"com.docker.compose.project={compose_project_name}",
+                    "com.docker.compose.service=sidecar",
+                ]
+            }
+        )
+        assert containers, "Sidecar container not running"
+        sidecar = containers[0]
+
+        tools_cmd = (
+            "cat <<'EOF' | python -m sidecar.mcp\n"
+            '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n'
+            "EOF"
+        )
+        tools_result = sidecar.exec_run(["sh", "-lc", tools_cmd])
+        assert tools_result.exit_code == 0, tools_result.output.decode(errors="ignore")
+        tools_output = tools_result.output.decode(errors="ignore")
+        assert "safellm.guard_decide" in tools_output
+        assert "safellm.pii_scan" in tools_output
+        assert "safellm.dlp_scan" in tools_output
+
+        call_cmd = (
+            "cat <<'EOF' | python -m sidecar.mcp\n"
+            '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"safellm.guard_decide","arguments":{"prompt":"hello","uri":"/chat"}}}\n'
+            "EOF"
+        )
+        call_result = sidecar.exec_run(["sh", "-lc", call_cmd])
+        assert call_result.exit_code == 0, call_result.output.decode(errors="ignore")
+        call_output = call_result.output.decode(errors="ignore")
+        assert "\"structuredContent\"" in call_output
+        assert "\"allowed\"" in call_output
+
     def test_apisix_route_configuration(self):
         """Test that APISIX routes are properly configured."""
         # Test various routes

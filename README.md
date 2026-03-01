@@ -53,21 +53,36 @@ Reference docs:
 - Safe requests -> 200
 - Malicious requests -> 403 (`Blocked by security: L1_KEYWORDS`)
 
+## MCP Reference Deployment (Docker)
+
+If you want a focused MCP + SafeLLM demo bundle:
+
+```bash
+cd examples/mcp-reference
+cp .env.example .env
+docker compose up -d --build
+bash smoke-test.sh
+```
+
+This validates:
+- HTTP endpoints (`/health`, `/v1/guard`)
+- MCP stdio tools (`tools/list`, `tools/call`)
+
 ## Docker Image (Docker Hub)
 
 Published image:
-- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1.0`
+- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1.1`
 - `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1`
 - `docker.io/safellm/safellm-apisix-gateway-sidecar:2`
 
 Quick test with published image only:
 
 ```bash
-docker pull safellm/safellm-apisix-gateway-sidecar:2.1.0
+docker pull safellm/safellm-apisix-gateway-sidecar:2.1.1
 docker run --rm -p 8000:8000 \
   -e ENABLE_CACHE=false \
   -e SHADOW_MODE=false \
-  safellm/safellm-apisix-gateway-sidecar:2.1.0
+  safellm/safellm-apisix-gateway-sidecar:2.1.1
 ```
 
 In another shell:

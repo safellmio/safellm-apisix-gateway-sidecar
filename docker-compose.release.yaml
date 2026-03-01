@@ -4,11 +4,11 @@
 # This is the production-ready compose file with PINNED versions.
 # Use for deployments - never use 'latest' tags in production.
 #
-# Version: 2.1.0
+# Version: 2.1.1
 # Generated: 2026-02-22
 # ============================================================================
 
-x-version: &safellm-version "2.1.0"
+x-version: &safellm-version "2.1.1"
 
 services:
   apisix:
@@ -29,7 +29,7 @@ services:
 
   sidecar:
     # Use published image instead of build
-    image: ghcr.io/safellmio/safellm-apisix-gateway-sidecar:2.1.0
+    image: ghcr.io/safellmio/safellm-apisix-gateway-sidecar:2.1.1
     restart: unless-stopped
     environment:
       SAFELLM_EDITION: oss

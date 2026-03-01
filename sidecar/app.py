@@ -119,7 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="SafeLLM Sidecar",
-        version="2.1.0",  # Release version
+        version="2.1.1",  # Release version
         description="Security Gateway for LLM Applications",
         lifespan=lifespan
     )

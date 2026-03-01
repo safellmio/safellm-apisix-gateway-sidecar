@@ -24,7 +24,7 @@ Usage:
 import logging
 import sys
 from functools import lru_cache
-from typing import Any, Optional
+from typing import Any, Optional, TextIO
 
 # structlog - optional but recommended
 try:
@@ -76,6 +76,7 @@ def configure_logging(
     level: str = "INFO",
     format: str = "json",
     service_name: str = "safellm-sidecar",
+    stream: TextIO | None = None,
 ) -> None:
     """
     Configure structured logging for the application.
@@ -87,12 +88,15 @@ def configure_logging(
     
     Call this ONCE at application startup, before any logging.
     """
+    log_stream = stream or sys.stdout
+
     if not HAS_STRUCTLOG:
         # Fallback to basic logging if structlog not installed
         logging.basicConfig(
             level=getattr(logging, level.upper(), logging.INFO),
             format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-            stream=sys.stdout,
+            stream=log_stream,
+            force=True,
         )
         return
     
@@ -126,7 +130,7 @@ def configure_logging(
             getattr(logging, level.upper(), logging.INFO)
         ),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
     
@@ -134,8 +138,8 @@ def configure_logging(
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(message)s",
-        stream=sys.stdout,
-        handlers=[logging.StreamHandler(sys.stdout)],
+        handlers=[logging.StreamHandler(log_stream)],
+        force=True,
     )
 
 

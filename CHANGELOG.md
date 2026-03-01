@@ -4,6 +4,26 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [Unreleased]
+
+## [2.1.1] - 2026-03-01
+
+### Added
+- Plugin-based MCP server under `sidecar/mcp` with JSON-RPC stdio runtime (`python -m sidecar.mcp`) and three built-in tools:
+  - `safellm.guard_decide` (full input guard pipeline decision),
+  - `safellm.pii_scan` (PII layer scan),
+  - `safellm.dlp_scan` (output DLP scan with `block|anonymize|log` mode support).
+- MCP unit-test suite in `tests/unit/mcp/` covering registry behavior, plugin input validation/execution, and JSON-RPC server handling.
+- New `examples/mcp-reference` Docker bundle with `docker-compose.yml`, `.env.example`, and `smoke-test.sh` for HTTP+MCP validation.
+- Docker E2E coverage for MCP stdio execution inside sidecar containers (`test_mcp_stdio_tools_in_container`).
+
+### Fixed
+- Resolved MCP bootstrap circular-import risk by moving `get_pii_layer` lookup to lazy import inside plugin execution path.
+- Routed MCP mode logs to `stderr` so `stdout` remains valid JSON-RPC output for MCP clients.
+- Added JSON-RPC notification handling (`notifications/initialized` and `notifications/*`) with no response emission.
+- Hardened MCP internal error responses to avoid leaking exception internals to clients.
+- Improved MCP reference smoke test portability and stderr/stdout separation.
+
 ## [2.1.0] - 2026-02-22
 
 ### Added

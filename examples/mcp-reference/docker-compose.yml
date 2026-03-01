@@ -1,0 +1,50 @@
+services:
+  sidecar:
+    build:
+      context: ../..
+      dockerfile: sidecar/Dockerfile
+      args:
+        EDITION: oss
+    restart: unless-stopped
+    environment:
+      SAFELLM_EDITION: oss
+      ENABLE_CACHE: "true"
+      SHADOW_MODE: "${SHADOW_MODE:-false}"
+      ENABLE_METRICS: "true"
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${SIDECAR_HTTP_PORT:-18000}:8000"
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy volatile-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - mcp-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+networks:
+  mcp-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

@@ -19,7 +19,7 @@ services:
         condition: service_healthy
 
   sidecar:
-    image: safellm/safellm-apisix-gateway-sidecar:2.1.0
+    image: safellm/safellm-apisix-gateway-sidecar:2.1.1
     restart: unless-stopped
     environment:
       SAFELLM_EDITION: oss

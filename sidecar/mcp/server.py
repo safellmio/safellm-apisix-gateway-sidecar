@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 class MCPServer:
     """Line-delimited JSON-RPC server exposing SafeLLM tools."""
 
-    def __init__(self, registry: MCPToolRegistry, server_name: str = "safellm-mcp", server_version: str = "2.1.1"):
+    def __init__(self, registry: MCPToolRegistry, server_name: str = "safellm-mcp", server_version: str = "2.2.0"):
         self._registry = registry
         self._server_name = server_name
         self._server_version = server_version

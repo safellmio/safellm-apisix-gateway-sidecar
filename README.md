@@ -71,18 +71,18 @@ This validates:
 ## Docker Image (Docker Hub)
 
 Published image:
-- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1.1`
+- `docker.io/safellm/safellm-apisix-gateway-sidecar:2.2.0`
 - `docker.io/safellm/safellm-apisix-gateway-sidecar:2.1`
 - `docker.io/safellm/safellm-apisix-gateway-sidecar:2`
 
 Quick test with published image only:
 
 ```bash
-docker pull safellm/safellm-apisix-gateway-sidecar:2.1.1
+docker pull safellm/safellm-apisix-gateway-sidecar:2.2.0
 docker run --rm -p 8000:8000 \
   -e ENABLE_CACHE=false \
   -e SHADOW_MODE=false \
-  safellm/safellm-apisix-gateway-sidecar:2.1.1
+  safellm/safellm-apisix-gateway-sidecar:2.2.0
 ```
 
 In another shell:

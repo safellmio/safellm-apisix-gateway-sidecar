@@ -6,7 +6,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 
 ## [Unreleased]
 
-## [2.1.1] - 2026-03-01
+## [2.2.0] - 2026-03-01
 
 ### Added
 - Plugin-based MCP server under `sidecar/mcp` with JSON-RPC stdio runtime (`python -m sidecar.mcp`) and three built-in tools:
